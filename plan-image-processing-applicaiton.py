@@ -115,6 +115,7 @@ def find_template_variations(image, template, furniture_name, elements_amount, t
     print(f'Were found {len(template_variations)} variations of {furniture_name}')
     return template_variations
 
+
 def is_corner_in_walls(walls, corner):
     for wall in walls:
         if corner == wall[0] or corner == wall[1]:
@@ -131,11 +132,13 @@ def is_point_in_found_elements(elements, point):
                 return found_element
     return None
 
+
 def import_csv_config():
     with open('application-config.csv', 'r', encoding='utf-8-sig') as file:
         reader = csv.DictReader(file)
         furniture_list = [row for row in reader]
     return furniture_list
+
 
 def import_xlsx_config():
     workbook = openpyxl.load_workbook('application-config.xlsx')
@@ -193,6 +196,7 @@ class Ui_MainWindow(object):
         self.corners_confirmed = False
         self.first_selected_corner = None
         self.walls = []
+        self.outside_walls = []
         self.confirmed_walls = []
         self.threshold_current_value = 0
         self.dilate_1 = False
@@ -860,10 +864,10 @@ class Ui_MainWindow(object):
         self.verticalLayout.addWidget(self.wall_confirmation_text)
         self.horizontalLayout_13 = QtWidgets.QHBoxLayout()
         self.horizontalLayout_13.setObjectName("horizontalLayout_13")
+        spacerItem13 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         self.add_wall_radio_button = QtWidgets.QRadioButton(self.frame)
         self.add_wall_radio_button.setObjectName("add_wall_radio_button")
         self.horizontalLayout_13.addWidget(self.add_wall_radio_button)
-        spacerItem13 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
         self.horizontalLayout_13.addItem(spacerItem13)
         self.delete_wall_radio_button = QtWidgets.QRadioButton(self.frame)
         self.delete_wall_radio_button.setObjectName("delete_wall_radio_button")
@@ -1592,11 +1596,13 @@ class Ui_MainWindow(object):
                 }
                 converted_furniture.append(converted_interior_element)
 
+
         data = {
             'image_location': os.path.abspath(self.image_path),
             'horizontal_image_size': horizontal_image_size,
             'vertical_image_size': vertical_image_size,
             'walls': self.adjusted_walls,
+            'outside_walls': self.find_outside_walls(),
             'windows': converted_windows,
             'doors': converted_doors,
             'furniture': converted_furniture
@@ -1810,7 +1816,6 @@ class Ui_MainWindow(object):
                             if self.first_selected_corner is None:
                                 self.first_selected_corner = selected_corner
                             else:
-
                                 if not is_corner_in_walls(self.walls, selected_corner):
                                     self.walls.append([self.first_selected_corner, selected_corner])
                                     self.first_selected_corner = selected_corner
@@ -1827,6 +1832,8 @@ class Ui_MainWindow(object):
                             else:
                                 if self.check_and_remove_wall(self.walls, self.first_selected_corner, selected_corner):
                                     self.first_selected_corner = None
+                                elif self.check_and_remove_wall(self.outside_walls, self.first_selected_corner, selected_corner):
+                                    self.first_selected_corner = None
                         else:
                             self.first_selected_corner = None
 
@@ -1834,7 +1841,6 @@ class Ui_MainWindow(object):
                     self.filtered_image_with_corners = cv2.cvtColor(self.filtered_image, cv2.COLOR_GRAY2BGR)
                     if not self.corners_confirmed:
                         self.draw_corner_marks(self.corners, self.RED)
-                    self.draw_walls()
                     self.draw_corner_marks(self.confirmed_corners, self.GREEN)
 
             # Processing mouse press events in interior elements tab
@@ -1848,7 +1854,9 @@ class Ui_MainWindow(object):
                 elif self.add_region_of_interest_radio_button.isChecked():
                     self.drawing = True
 
-                elif self.found_windows is not None or self.confirmed_windows is not None:
+                else:
+
+                    # Windows
                     selected_window_region_in_found = is_point_in_found_elements(self.found_windows,
                                                                         [self.start_x, self.start_y])
                     selected_window_region_in_confirmed = is_point_in_found_elements(self.confirmed_windows,
@@ -1868,7 +1876,7 @@ class Ui_MainWindow(object):
                         selected_window_region_in_confirmed is not None\
                                         and self.confirmed_windows.remove(selected_window_region_in_confirmed)
 
-                elif self.found_doors is not None or self.confirmed_doors is not None:
+                    # Doors
                     selected_door_region_in_found = is_point_in_found_elements(self.found_doors,
                                                                         [self.start_x, self.start_y])
                     selected_door_region_in_confirmed = is_point_in_found_elements(self.confirmed_doors,
@@ -1888,7 +1896,7 @@ class Ui_MainWindow(object):
                         selected_door_region_in_confirmed is not None\
                                         and self.confirmed_doors.remove(selected_door_region_in_confirmed)
 
-                elif self.found_furniture is not None or self.confirmed_furniture is not None:
+                    # Furniture
                     selected_furniture_region_in_found = is_point_in_found_elements(
                         self.found_furniture, [self.start_x, self.start_y])
                     selected_furniture_region_in_confirmed = is_point_in_found_elements(
@@ -2017,24 +2025,6 @@ class Ui_MainWindow(object):
             self.filtered_image = filtered_image
             self.set_image()
 
-    # Finding corners with goodFeaturesToTrack
-    # def find_corners(self):
-    #     if self.filtered_image is None:
-    #         self.corners_filters()
-    #     corners = cv2.goodFeaturesToTrack(self.filtered_image, self.max_corners_spin_box.value(),
-    #                                       self.quality_level_spin_box.value(), self.min_distance_spin_box.value())
-    #     if corners is not None:
-    #         corners = np.intp(corners)
-    #         corners = np.squeeze(corners, axis=1)
-    #         corners = corners.tolist()
-    #         self.image_with_corners = self.image.copy()
-    #         self.filtered_image_with_corners = cv2.cvtColor(self.filtered_image, cv2.COLOR_GRAY2BGR)
-    #         self.corners_found = True
-    #         self.corners = corners
-    #         self.draw_corner_marks(self.corners, self.RED)
-    #     if self.confirmed_corners is not None:
-    #         self.draw_corner_marks(self.confirmed_corners, self.GREEN)
-    #     self.set_image()
 
     # Finding corners with cornerHarris
     def find_corners(self):
@@ -2070,6 +2060,27 @@ class Ui_MainWindow(object):
             self.draw_corner_marks(self.confirmed_corners, self.GREEN)
 
         self.set_image()
+
+    def find_outside_walls(self):
+        outside_corners = cv2.convexHull(np.array(self.adjust_coordinates(self.confirmed_corners), dtype=np.float32))
+        outside_corners_new = []
+        for corner in outside_corners:
+            x = corner[0][0]
+            y = corner[0][1]
+            corner_new = (x, y)
+            outside_corners_new.append(corner_new)
+        outside_walls = []
+        EPSILON = 1e-5
+
+        for wall in self.adjusted_walls:
+            start_point, end_point = wall
+            if any(np.allclose(start_point, corner, atol=EPSILON) for corner in outside_corners_new) and \
+                    any(np.allclose(end_point, corner, atol=EPSILON) for corner in outside_corners_new):
+                outside_walls.append(wall)
+            elif any(np.allclose(point, corner, atol=EPSILON) for point in (start_point, end_point) for corner in
+                     outside_corners_new):
+                outside_walls.append(wall)
+        return outside_walls
 
     def find_furniture(self, furniture_name):
         found_furniture = self.prepare_template_and_find_variations(furniture_name)
@@ -2133,7 +2144,6 @@ class Ui_MainWindow(object):
                 'furniture_name': 'door',
                 'door_type': self.get_door_type()
             }
-            print(self.door_type_combo_box.currentText())
             if self.confirmed_doors is not None:
                 self.confirmed_doors.append(variation)
             else:
@@ -2203,14 +2213,14 @@ class Ui_MainWindow(object):
 
     def apply_corners_and_walls(self):
         if len(self.walls) > 0:
-            self.confirmed_walls = self.walls
-            self.walls = []
+            self.confirmed_walls = self.walls.copy()
+            # self.walls = []
             self.tabWidget.tabBar().setTabTextColor(1, QtCore.Qt.black)
             self.draw_walls()
             self.draw_corner_marks(self.confirmed_corners, self.GREEN)
             self.set_image()
         else:
-            print('показать выплывающее окно о необходимости разметки стен' )
+            print('показать выплывающее окно о необходимости разметки стен')
 
     def draw_corner_marks(self, corners, color):
         if len(corners) > 0:
@@ -2226,6 +2236,7 @@ class Ui_MainWindow(object):
                     cv2.circle(self.image_with_corners, (x, y), 4, color, 2)
                     cv2.circle(self.filtered_image_with_corners, (x, y), 15, color, 2)
                     cv2.circle(self.filtered_image_with_corners, (x, y), 4, color, 2)
+        self.draw_walls()
 
         self.set_image()
 
@@ -2234,10 +2245,12 @@ class Ui_MainWindow(object):
             for wall in self.walls:
                 start_pos, end_pos = wall
                 cv2.line(self.image_with_corners, start_pos, end_pos, self.RED, thickness=2)
+                cv2.line(self.filtered_image_with_corners, start_pos, end_pos, self.RED, thickness=2)
         if self.confirmed_walls:
             for wall in self.confirmed_walls:
                 start_pos, end_pos = wall
-                cv2.line(self.image_with_corners, start_pos, end_pos, self.GREEN, thickness=2)
+                cv2.line(self.image_with_corners, start_pos, end_pos, self.GREEN, thickness=self.IMAGE_UPSCALE_RATE)
+                cv2.line(self.filtered_image_with_corners, start_pos, end_pos, self.GREEN, thickness=self.IMAGE_UPSCALE_RATE)
 
     def draw_rectangles(self, save=False):
         if self.image is not None:
@@ -2281,14 +2294,25 @@ class Ui_MainWindow(object):
             furniture_name = roi['furniture_name']
 
             current_rotated_rectangle = RotatedRectangle(center, size, rotation_angle)
-
-            # Draw the rotated rectangle on the image
             current_rotated_rectangle.draw_rotated_rectangle(self.image_with_interior_elements, color=color)
 
-            cv2.putText(self.image_with_interior_elements, f"Rotation: {rotation_angle} degrees", (center[0], (center[1] - size[1] // 2 - 20)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5 * self.IMAGE_UPSCALE_RATE, color, 2)
-            cv2.putText(self.image_with_interior_elements, furniture_name, (center[0], (center[1] - size[1] // 2 - 20 * self.IMAGE_UPSCALE_RATE)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5 * self.IMAGE_UPSCALE_RATE, color, 2)
+            if size[0] > size[1] and 90 < rotation_angle < 180:
+                half_size = size[0] // 2
+            else:
+                half_size = size[1] // 2
+            sin_angle = math.sin(math.radians(rotation_angle))
+            # cos_angle = math.cos(math.radians(rotation_angle))
+            vertical_offset = int(half_size + abs(sin_angle))
+
+            cv2.putText(self.image_with_interior_elements, f"{rotation_angle} degrees", (center[0],
+                        (center[1] - vertical_offset)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5 * self.IMAGE_UPSCALE_RATE, color, self.IMAGE_UPSCALE_RATE)
+            cv2.putText(self.image_with_interior_elements, furniture_name, (center[0],
+                        (center[1] - vertical_offset - 40 * self.IMAGE_UPSCALE_RATE)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5 * self.IMAGE_UPSCALE_RATE, color, self.IMAGE_UPSCALE_RATE)
+            cv2.putText(self.image_with_interior_elements, f'Size: {size[0]} x {size[1]}', (center[0],
+                        (center[1] - vertical_offset - 20 * self.IMAGE_UPSCALE_RATE)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5 * self.IMAGE_UPSCALE_RATE, color, self.IMAGE_UPSCALE_RATE)
 
     def draw_all_rois(self, mouse_move=True):
         self.image_with_interior_elements = self.image.copy()
@@ -2445,6 +2469,12 @@ class Ui_MainWindow(object):
                           -(coordinate[1] - center_y) * self.vertical_image_size_scale / 1000)
         return adjusted_coordinate
 
+    def adjust_coordinates(self, coordinates):
+        adjusted_coordinates = []
+        for coordinate in coordinates:
+            adjusted_coordinates.append(self.adjust_coordinate(coordinate))
+        return adjusted_coordinates
+
     def adjust_furniture_size(self, size):
         return (size[0] * self.horizontal_image_size_scale / 1000, size[1] * self.vertical_image_size_scale / 1000)
 
@@ -2456,8 +2486,6 @@ class Ui_MainWindow(object):
         else:
             door_type = 'double_interior_door'
         return door_type
-
-
 
     # def handle_wheel_event(self, event):
     #     if event.modifiers() == QtCore.Qt.ShiftModifier:
